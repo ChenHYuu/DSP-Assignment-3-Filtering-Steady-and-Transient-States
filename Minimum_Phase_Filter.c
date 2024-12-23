@@ -1,0 +1,1 @@
+/* Minimum_Phase_Filter [Usge]: ./Minimum_Phase_Filter.exe fc M b_fn.txt in_fn.wav out.fn.wav */
