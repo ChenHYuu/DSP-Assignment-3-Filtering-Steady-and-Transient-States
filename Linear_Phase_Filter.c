@@ -1,12 +1,13 @@
-/* Linear_Phase_Filter [Usge]: ./Linear_Phase_Filter.exe fc M b_fn.txt in_fn.wav out.fn.wav */
+/* Linear_Phase_Filter [Usage]: ./Linear_Phase_Filter.exe fc M b_fn.txt in_fn.wav out.fn.wav */
 #include <stdio.h>
 #include <math.h>
+#include <complex.h>
 #include <stdlib.h>
-#include <memory.h>
+#include <string.h>
 
 #define FS 48000.0f
 // #define FL 400.0f
-#define FH 4000.0f
+// #define FH 4000.0f
 // #define M 1024
 #define PI 3.141592653589793f
 
@@ -114,19 +115,29 @@ float low_pass(int m, int n, int fc)
 	}
 }
 
-float band_pass(int m, int n, int fc)
-{
-	float wh = 2*PI*FH/FS;
-    float wl = 2*PI*fc/FS;
-	if(n==m) {// L'Hopital's Rule
-		return 2.0*(wh/PI - wl/PI);
-	}
-	else {
-		return 2.0*(sinf(wh*((float)(n-m)))-sinf(wl*((float)(n-m))))/PI/((float)(n-m)) * hamming(2*m+1, n);
-	}
+// float band_pass(int m, int n, int fc)
+// {
+// 	float wh = 2*PI*FH/FS;
+//     float wl = 2*PI*fc/FS;
+// 	if(n==m) {// L'Hopital's Rule
+// 		return 2.0*(wh/PI - wl/PI);
+// 	}
+// 	else {
+// 		return 2.0*(sinf(wh*((float)(n-m)))-sinf(wl*((float)(n-m))))/PI/((float)(n-m)) * hamming(2*m+1, n);
+// 	}
+// }
+void apply_filter(const float *filter, int filter_len, const short *input, short *output, size_t length) {
+    #pragma omp parallel for
+    for (size_t n = 0; n < length; n++) {
+        float y = 0.0f;
+        for (int k = 0; k < filter_len; k++) {
+            if (n >= k) {
+                y += filter[k] * input[n - k];
+            }
+        }
+        output[n] = (short)(roundf(y));
+    }
 }
-
-
 
 int main(int argc, char **argv)
 {
@@ -149,7 +160,6 @@ int main(int argc, char **argv)
 	int n = 0;
 	float y = 0;
 	int k;
-
 
 	// read wav
 	if( wav_read_fn((char *)in_fn, &wavin) == 0 ) {
@@ -175,21 +185,8 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	for(n=0;n<wavin.length;n++) {
-		y = 0;
-		for(k=0;k<(2*m+1);k++) {
-			if( (n-k)>=0 )
-				y = y + h_L[k] * ((float)(wavin.LChannel[n-k]));
-		}
-		wavout.LChannel[n] = (short)(roundf(y));
-
-		y = 0;
-		for(k=0;k<(2*m+1);k++) {
-			if( (n-k)>=0 )
-				y = y + h_R[k] * ((float)(wavin.RChannel[n-k]));
-		}
-		wavout.RChannel[n] = (short)(roundf(y));
-	}
+	apply_filter(h_L, 2 * m + 1, wavin.LChannel, wavout.LChannel, wavin.length);
+    apply_filter(h_R, 2 * m + 1, wavin.RChannel, wavout.RChannel, wavin.length);
 	memcpy(wavout.header, wavin.header, 44);
 
 
